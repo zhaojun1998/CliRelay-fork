@@ -1,0 +1,72 @@
+name: Build fork image
+
+# Builds this branch for the oracle host (arm64) and pushes it to the fork owner's GHCR.
+# The panel is pinned to the build the host already runs (panel-main-138facd).
+
+on:
+  push:
+    branches: [build/oracle-image-fix]
+  workflow_dispatch:
+
+concurrency:
+  group: fork-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FRONTEND_REF: main
+  FRONTEND_COMMIT: 138facd52dda51530c99e6ef48a116a76cf1cd20
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Compute build metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          short="$(git rev-parse --short HEAD)"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "image=ghcr.io/${owner}/clirelay" >> "$GITHUB_OUTPUT"
+          echo "short=${short}" >> "$GITHUB_OUTPUT"
+          echo "version=v0.5.9-imagefix-${short}" >> "$GITHUB_OUTPUT"
+          echo "ui_version=panel-${FRONTEND_REF}-${FRONTEND_COMMIT:0:7}" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:imagefix-${{ steps.meta.outputs.short }}
+            ${{ steps.meta.outputs.image }}:oracle
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.meta.outputs.date }}
+            UI_VERSION=${{ steps.meta.outputs.ui_version }}
+            FRONTEND_REF=${{ env.FRONTEND_REF }}
+            FRONTEND_COMMIT=${{ env.FRONTEND_COMMIT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
