@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           short="$(git rev-parse --short HEAD)"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          echo "image=ghcr.io/${owner}/clirelay" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${owner}/clirelay-fork" >> "$GITHUB_OUTPUT"
           echo "short=${short}" >> "$GITHUB_OUTPUT"
           echo "version=v0.5.9-imagefix-${short}" >> "$GITHUB_OUTPUT"
           echo "ui_version=panel-${FRONTEND_REF}-${FRONTEND_COMMIT:0:7}" >> "$GITHUB_OUTPUT"
